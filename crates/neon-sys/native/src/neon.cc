@@ -221,15 +221,21 @@ extern "C" bool Neon_ArrayBuffer_New(v8::Local<v8::ArrayBuffer> *out, v8::Isolat
 
 
 extern "C" size_t Neon_ArrayBuffer_Data(v8::Isolate *isolate, void **base_out, v8::Local<v8::ArrayBuffer> buffer) {
-#if (V8_MAJOR_VERSION >= 8)
-    auto contents = buffer->GetBackingStore();
-    *base_out = contents->Data();
-    return contents->ByteLength();
-#else
-    v8::ArrayBuffer::Contents contents = buffer->GetContents();
-    *base_out = contents.Data();
-    return contents.ByteLength();
-#endif
+  #if _MSC_VER && NODE_RUNTIME_ELECTRON && NODE_MODULE_VERSION >= 89
+    v8::Local<v8::Object> local;
+    node::Buffer::New(isolate, buffer, 0, buffer->ByteLength()).ToLocal(&local);
+    return Neon_Buffer_Data(isolate, base_out, local);
+  #else
+    #if (V8_MAJOR_VERSION >= 8)
+        auto contents = buffer->GetBackingStore();
+        *base_out = contents->Data();
+        return contents->ByteLength();
+    #else
+        v8::ArrayBuffer::Contents contents = buffer->GetContents();
+        *base_out = contents.Data();
+        return contents.ByteLength();
+    #endif
+  #endif
 }
 
 extern "C" bool Neon_Tag_IsArrayBuffer(v8::Isolate *isolate, v8::Local<v8::Value> value) {
