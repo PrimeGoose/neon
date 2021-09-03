@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::sync::Arc;
+use std::time::Duration;
 
 use neon::prelude::*;
 
@@ -182,6 +183,44 @@ pub fn drop_global_queue(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     // Put the `Wrapper` instance in a `Root` and drop it
     // Without the global drop queue, this will panic
     let _ = wrapper.root(&mut cx);
+
+    Ok(cx.undefined())
+}
+
+pub fn channel_join(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let get_message = cx.argument::<JsFunction>(0)?.root(&mut cx);
+    let callback = cx.argument::<JsFunction>(1)?.root(&mut cx);
+    let channel = cx.channel();
+
+    std::thread::spawn(move || {
+        // Give a chance for the data to change
+        std::thread::sleep(Duration::from_millis(100));
+
+        // Get the current message
+        let message = channel
+            .send(move |mut cx| {
+                let this = cx.undefined();
+
+                get_message
+                    .into_inner(&mut cx)
+                    .call::<_, _, JsValue, _>(&mut cx, this, [])?
+                    .downcast_or_throw::<JsString, _>(&mut cx)
+                    .map(|v| v.value(&mut cx))
+            })
+            .join()
+            .unwrap();
+
+        let response = format!("Received: {}", message);
+
+        channel.send(move |mut cx| {
+            let this = cx.undefined();
+            let args = [cx.string(response)];
+
+            callback.into_inner(&mut cx).call(&mut cx, this, args)?;
+
+            Ok(())
+        });
+    });
 
     Ok(cx.undefined())
 }

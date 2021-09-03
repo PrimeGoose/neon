@@ -71,4 +71,17 @@ const assert = require('chai').assert;
     // Asynchronously GC to give the task queue a chance to execute
     setTimeout(() => global.gc(), 10);
   });
+
+  it('should be able to join on the result of a channel', function (cb) {
+    let msg = "Uninitialized";
+
+    addon.channel_join(() => msg, (res) => {
+      assert.strictEqual(res, "Received: Hello, World!");
+      cb();
+    });
+
+    setTimeout(() => {
+      msg = "Hello, World!";
+    }, 10);
+  });
 });
